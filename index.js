@@ -18,7 +18,7 @@ const S3 = new AWS.S3({
 
 const URL = process.env.URL;
 const ALLOWED_RESOLUTIONS = process.env.ALLOWED_RESOLUTIONS ? new Set(process.env.ALLOWED_RESOLUTIONS.split(/\s*,\s*/)) : new Set([]);
-
+let new_bucket = 'gandesign-images'
 exports.handler = function (event, context, callback) {
   const srcKey = decodeURIComponent(event.Records[0].s3.object.key).replace(/\+/g, ' ')
   const bucket = event.Records[0].s3.bucket.name
@@ -35,10 +35,24 @@ exports.handler = function (event, context, callback) {
     throw new Error(`filetype: ${fileType} is not an allowed type`)
   }
 
+  fs.readdirSync('/tmp', (err, files) => {
+    if (err) throw err;
+    console.log('found these files inside of the container')
+    console.log(files)
+  
+    for (const file of files) {
+    
+      fs.unlink(path.join('/tmp', file), err => {
+        if (err) throw err;
+      });
+    }
+  });
+
   var tempFileName = path.join('/tmp', `input.${fileType}`);
   var tempFile = fs.createWriteStream(tempFileName);
-  S3.getObject({ Bucket: bucket, Key: srcKey }).createReadStream().pipe(tempFile)
-  extractFrames(tempFileName)
+  let file_stream = S3.getObject({ Bucket: bucket, Key: srcKey }).createReadStream().pipe(tempFile)
+  file_stream.on('finish', () => {
+    extractFrames(tempFileName)
     .then(buffer => uploadAllToS3())
     .then(() => callback(null, {
       statusCode: '301',
@@ -47,6 +61,8 @@ exports.handler = function (event, context, callback) {
     })
     )
     .catch(err => callback(err))
+  })
+  
 
   function readFiles(dirname, onFileContent, onError) {
     fs.readdir(dirname, (err, filenames) => {
@@ -58,7 +74,6 @@ exports.handler = function (event, context, callback) {
 
       filenames.forEach((filename) => {
         if (filename != 'input.mp4') {
-          console.log(`processing ${filename}`)
           fs.readFile(path.resolve(dirname, filename), function (err, content) {
             if (err) {
               onError(err);
@@ -76,12 +91,10 @@ exports.handler = function (event, context, callback) {
     return new Promise((resolve, reject) => {
       let split_key = srcKey.split('/')
       readFiles(path.resolve(__dirname, '/tmp/'), (filename, content) => {
-        console.log(filename)
-        //data[filename] = content;
-
+        
         let dstKey = `${split_key[1]}/${split_key[2]}/${filename}`
         let params = {
-          Bucket: bucket,
+          Bucket: new_bucket,
           Key: dstKey,
           Body: content,
           ContentType: `image/png`
@@ -90,63 +103,12 @@ exports.handler = function (event, context, callback) {
           if (err) {
             console.log(err)
           }
-          console.log(`successful upload to ${bucket}/${dstKey}`)
+          console.log(`successful upload to ${new_bucket}/${dstKey}`)
         })
       }, function (error) {
         console.log(error)
       });
 
-
-      /*
-      fs.promises.readdir('/tmp', { withFileTypes: true })
-        .then(files => {
-          console.log(files)
-          let split_key = srcKey.split('/')
-          console.log(srcKey)
-          console.log(split_key[1])
-          console.log(split_key[2])
-          for (let i = 0; i < files.length; i++) {
-
-
-            let file_path = files[i]
-            let dstKey = `${split_key[1]}/${split_key[2]}/${file_path}`
-            console.log(`trying to upload ${dstKey}`)
-            let fileContent = fs.readFileSync(`tmp/${file_path}`);
-            let params = {
-              Bucket: bucket,
-              Key: dstKey,
-              Body: fileContent,
-              ContentType: `image/png`
-            }
-            s3.upload(params, function (err, data) {
-              if (err) {
-                console.log(err)
-              }
-              console.log(`successful upload to ${bucket}/${dstKey}`)
-            })
-            console.log(dstKey)
-          }
-          resolve()
-        })
-        */
-      //let dstKey = srcKey.replace(/\.\w+$/, `-${x}.jpg`).replace('/videos/', '/thumbnails/')
-      /*
-        var params = {
-          Bucket: bucket,
-          Key: dstKey,
-          Body: tmpFile,
-          ContentType: `image/jpg`
-        }
-  
-        s3.upload(params, function(err, data) {
-          if (err) {
-            console.log(err)
-            reject()
-          }
-          console.log(`successful upload to ${bucket}/${dstKey}`)
-          resolve()
-        })
-          */
     })
 
   }
