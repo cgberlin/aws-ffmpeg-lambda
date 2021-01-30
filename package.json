@@ -1,13 +1,12 @@
 {
-  "name": "image-resize",
+  "name": "ffmpeg-lambda-vid-to-image",
   "version": "1.0.0",
-  "description": "Serverless image resizing",
-  "readme": "Serverless image resizing",
-  "repository": "https://github.com/awslabs/serverless-image-resizing",
-  "license": "Apache-2.0",
+  "description": "AWS + ffmpeg lambda function for extraction images from a video",
+  "readme": "",
+  "repository": "https://github.com/cgberlin/aws-ffmpeg-lambda",
+  "license": "MIT",
   "main": "index.js",
   "dependencies": {
-
   },
   "devDependencies": {
     "aws-sdk": "^2.36.0"
